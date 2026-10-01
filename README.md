@@ -20,11 +20,11 @@ request -> verification -> smart donor matching -> notifications -> donor respon
 
 ## Folder Sequence In System 
 blood-network/
-  app.py
-  requirements.txt
-  README.md
-  static/index.html
-  database/schema.sql
+  , app.py
+  requirements.txt, 
+  README.md, 
+  static/index.html, 
+  database/schema.sql, 
   docs/Project_Explanation_Document.docx
 
 ## Run locally
