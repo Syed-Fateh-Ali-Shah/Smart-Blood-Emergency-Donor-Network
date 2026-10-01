@@ -18,6 +18,15 @@ request -> verification -> smart donor matching -> notifications -> donor respon
 - `static/index.html` - frontend for all four roles
 - `requirements.txt` - Python dependencies
 
+## Folder Sequence In System 
+blood-network/
+  app.py
+  requirements.txt
+  README.md
+  static/index.html
+  database/schema.sql
+  docs/Project_Explanation_Document.docx
+
 ## Run locally
 ```
 pip install -r requirements.txt
