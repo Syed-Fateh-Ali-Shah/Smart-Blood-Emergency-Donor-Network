@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smart Blood &amp; Emergency Donor Network</title>
+<style>
+:root{--bg:#f6f4f2;--ink:#232a31;--mut:#6b747d;--red:#b3122d;--line:#e2ded9;--ok:#1d7a4b;--warn:#b86b00;--card:#fff}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--red);color:#fff;padding:12px 20px;display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+header b{font-size:18px}header span{opacity:.9}
+nav{display:flex;gap:4px;padding:8px 20px 0;border-bottom:1px solid var(--line);background:#fff;overflow-x:auto}
+nav button{border:0;background:none;padding:10px 14px;font:inherit;cursor:pointer;color:var(--mut);border-bottom:3px solid transparent;white-space:nowrap}
+nav button.on{color:var(--red);border-color:var(--red);font-weight:600}
+main{max-width:1100px;margin:20px auto;padding:0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:16px;margin-bottom:14px}
+.auth{max-width:420px;margin:40px auto}
+h2{margin:0 0 12px;font-size:20px}h3{margin:16px 0 8px;font-size:16px}
+label{display:block;font-size:13px;color:var(--mut);margin:10px 0 3px}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid #cfc9c3;border-radius:4px;font:inherit;background:#fff}
+button.b{background:var(--red);color:#fff;border:0;border-radius:4px;padding:8px 14px;font:inherit;cursor:pointer}
+button.b.g{background:#fff;color:var(--ink);border:1px solid #cfc9c3}button.b.ok{background:var(--ok)}button.b.sm{padding:4px 10px;font-size:13px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.bar select,.bar input{width:auto;min-width:130px}
+table{width:100%;border-collapse:collapse;background:#fff}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);font-size:14px}
+th{background:#faf8f6;color:var(--mut);font-weight:600}tr.k{cursor:pointer}tr.k:hover{background:#faf1f2}
+.wrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+.tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;background:#eee;color:var(--ink)}
+.tag.critical{background:#fde2e6;color:var(--red)}.tag.verified{background:#dff3e8;color:var(--ok)}.tag.suspicious,.tag.rejected{background:#fff0d6;color:var(--warn)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:6px;padding:12px}.kpi b{font-size:26px;display:block}.kpi span{color:var(--mut);font-size:13px}
+.hb{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:14px}.hb i{display:block;height:14px;background:var(--red);border-radius:2px}.hb u{text-decoration:none;min-width:150px}
+dialog{border:1px solid var(--line);border-radius:8px;max-width:760px;width:94%;padding:20px}dialog::backdrop{background:#0007}
+.prog{height:8px;background:#eee;border-radius:4px;overflow:hidden;margin:6px 0}.prog i{display:block;height:100%;background:var(--ok)}
+.note{padding:8px 0;border-bottom:1px solid var(--line)}.note small{color:var(--mut)}.mut{color:var(--mut)}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:6px;display:none;z-index:9}
+#toast.bad{background:var(--red)}
+</style></head><body>
+<div id="root"></div><dialog id="dlg"></dialog><div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let me=null,meta=null,tab=null,CUR=null;const V={};
+async function api(p,m='GET',b){const r=await fetch('/api/'+p,{method:m,headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'Something went wrong');return j}
+function toast(t,bad){const e=$('#toast');e.textContent=t;e.className=bad?'bad':'';e.style.display='block';clearTimeout(e.t);e.t=setTimeout(()=>e.style.display='none',3500)}
+const opts=(a,all)=>(all?`<option value="">${all}</option>`:'')+a.map(x=>`<option>${esc(x)}</option>`).join('');
+const form=e=>{e.preventDefault();return Object.fromEntries(new FormData(e.target))};
+const fmt=t=>t?esc(t.replace('T',' ').slice(0,16)):'-';
+const tag=(t,c)=>`<span class="tag ${esc(c||t)}">${esc(t)}</span>`;
+
+function authView(reg){
+$('#root').innerHTML=`<div class="auth card"><h2>Smart Blood &amp; Emergency Donor Network</h2>
+<form id="f"><div id="rf" ${reg?'':'hidden'}><label>Register as</label><select name="role" onchange="document.getElementById('df').hidden=this.value!='donor'"><option value="requester">Blood requester</option><option value="donor">Donor</option></select><label>Full name</label><input name="name"><label>Phone</label><input name="phone" placeholder="03xx-xxxxxxx"></div>
+<label>Email</label><input name="email" type="email" required><label>Password</label><input name="password" type="password" required>
+<div id="df" hidden><label>Blood group</label><select name="blood_group">${opts(meta.groups)}</select><label>Area</label><select name="area">${opts(meta.areas)}</select><label>Last donation date (leave empty if never)</label><input name="last_donation" type="date"></div>
+<p><button class="b" style="width:100%">${reg?'Create account':'Log in'}</button></p></form>
+<p class="mut"><a href="#" onclick="authView(${!reg});return false">${reg?'I already have an account':'Create an account'}</a></p>
+${reg?'':'<p class="mut" style="font-size:13px">Demo logins: admin@demo.com / admin123 &middot; coord@demo.com / coord123 &middot; req@demo.com / req123 &middot; donor1@demo.com / donor123</p>'}</div>`;
+$('#f').onsubmit=async e=>{try{me=await api(reg?'register':'login','POST',form(e));start()}catch(x){toast(x.message,1)}}}
+
+const TABS={requester:[['new','New request'],['mine','My requests'],['dash','Dashboard'],['notes','Notifications']],
+donor:[['offers','Requests for me'],['profile','My profile'],['dash','Dashboard'],['notes','Notifications']],
+coordinator:[['reqs','Requests'],['donors','Donors'],['dash','Dashboard'],['notes','Notifications']],
+admin:[['reqs','Requests'],['donors','Donors'],['users','Users'],['reports','Reports'],['dash','Dashboard'],['notes','Notifications']]};
+function start(){$('#root').innerHTML=`<header><b>Smart Blood &amp; Emergency Donor Network</b><span>${esc(me.name)} (${me.role}) <button class="b g sm" onclick="logout()">Log out</button></span></header><nav>${TABS[me.role].map(t=>`<button id="t-${t[0]}" onclick="go('${t[0]}')">${t[1]}${t[0]=='notes'?' <span id="bell"></span>':''}</button>`).join('')}</nav><main id="main"></main>`;go(TABS[me.role][0][0]);bell()}
+async function logout(){await api('logout','POST');me=null;authView()}
+async function bell(){try{const n=(await api('notifications')).filter(x=>!x.is_read).length;const b=$('#bell');if(b)b.innerHTML=n?`<span class="tag critical">${n}</span>`:''}catch{}}
+function go(t){tab=t;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.id=='t-'+t));V[t]().catch(e=>toast(e.message,1));bell()}
+
+V.new=async()=>{$('#main').innerHTML=`<div class="card"><h2>Request blood</h2><form id="f"><div class="row"><div><label>Patient name</label><input name="patient"></div><div><label>Blood group</label><select name="blood_group">${opts(meta.groups)}</select></div><div><label>Units required</label><input name="units" type="number" min="1" max="10" value="1"></div><div><label>Hospital</label><select name="hospital">${opts(meta.hospitals)}</select></div><div><label>Urgency</label><select name="urgency"><option>critical</option><option selected>urgent</option><option>normal</option></select></div><div><label>Needed within (hours)</label><input name="hours" type="number" min="1" max="168" value="6"></div></div><label>Details</label><textarea name="description" rows="2"></textarea><p><button class="b">Submit request</button></p></form><p class="mut">A coordinator verifies every request before donors are contacted.</p></div>`;
+$('#f').onsubmit=async e=>{try{await api('requests','POST',form(e));toast('Request submitted for verification');go('mine')}catch(x){toast(x.message,1)}}};
+
+V.reqs=V.mine=async()=>{const F=[['blood_group',meta.groups,'All groups'],['hospital',meta.hospitals,'All hospitals'],['city',meta.cities,'All cities'],['status',['Pending Verification','Active','Donors Contacted','Partially Fulfilled','Fulfilled','Completed','Cancelled','Expired','Rejected'],'All statuses'],['urgency',['critical','urgent','normal'],'Any urgency'],['verification',['pending','verified','suspicious','rejected'],'Any verification']];
+$('#main').innerHTML=`<div class="bar">${F.map(f=>`<select id="q-${f[0]}">${opts(f[1],f[2])}</select>`).join('')}<input type="date" id="q-date"></div><div id="list"></div>`;
+const load=async()=>{const p=new URLSearchParams();F.forEach(f=>{const v=$('#q-'+f[0]).value;if(v)p.set(f[0],v)});if($('#q-date').value)p.set('date',$('#q-date').value);
+const rows=await api('requests?'+p);$('#list').innerHTML=rows.length?`<div class="wrap"><table><tr><th>#</th><th>Group</th><th>Hospital</th><th>Units</th><th>Urgency</th><th>Status</th><th>Check</th><th>Needed by</th></tr>${rows.map(r=>`<tr class="k" onclick="openReq(${r.id})"><td>${r.id}</td><td><b>${r.blood_group}</b></td><td>${esc(r.hospital)}</td><td>${r.units_arranged}/${r.units_required}</td><td>${tag(r.urgency)}</td><td>${esc(r.status)}</td><td>${r.verification_status=='verified'?tag('&#10003; Verified Blood Request','verified'):tag(r.verification_status)}</td><td>${fmt(r.required_before)}</td></tr>`).join('')}</table></div>`:'<div class="card mut">No requests match. '+(me.role=='requester'?'Use New request to create one.':'')+'</div>'};
+document.querySelectorAll('.bar select,.bar input').forEach(e=>e.onchange=load);load()};
+
+async function openReq(id){CUR=id;const r=await api('requests/'+id);const st=me.role!='requester',open=['Active','Donors Contacted','Partially Fulfilled'].includes(r.status);
+$('#dlg').innerHTML=`<h2>${r.blood_group} blood at ${esc(r.hospital)} ${r.verification_status=='verified'?tag('&#10003; Verified Blood Request','verified'):tag(r.verification_status)}</h2>
+<p>${tag(r.urgency)} ${esc(r.status)} &middot; needed by ${fmt(r.required_before)} &middot; search radius ${r.radius} km${r.reports?` &middot; <b style="color:var(--warn)">${r.reports} report(s)</b>`:''}</p>
+<p>Patient: ${esc(r.patient||'-')} &middot; Requester: ${esc(r.requester.name)}${r.requester.phone?' ('+esc(r.requester.phone)+')':''}<br><span class="mut">${esc(r.description)}</span></p>
+<div>Units arranged ${r.units_arranged} of ${r.units_required}</div><div class="prog"><i style="width:${100*r.units_arranged/r.units_required}%"></i></div>
+<p>${st&&r.status=='Pending Verification'?`<button class="b ok sm" onclick="act('requests/${id}/verify')">Verify request</button> <button class="b g sm" onclick="act('requests/${id}/reject')">Reject</button> `:''}
+${st&&open?`<button class="b sm" onclick="act('requests/${id}/escalate')">Contact next donors</button> `:''}
+${['Fulfilled','Partially Fulfilled'].includes(r.status)?`<button class="b ok sm" onclick="act('requests/${id}/complete')">Mark completed</button> `:''}
+${['Pending Verification',...(open?[r.status]:[])].includes(r.status)?`<button class="b g sm" onclick="act('requests/${id}/cancel')">Cancel request</button>`:''}</p>
+<h3>Donors (ranked by match score)</h3>${r.responses.length?`<div class="wrap"><table><tr><th>Donor</th><th>Distance</th><th>Score</th><th>Status</th><th>Phone</th><th></th></tr>${r.responses.map(s=>`<tr><td>${esc(s.name)}</td><td>${s.distance} km</td><td>${s.match_score}</td><td>${esc(s.status)}</td><td>${esc(s.phone||'hidden until accepted')}</td><td>${s.status=='accepted'?`<button class="b ok sm" onclick="act('responses/${s.id}/confirm')">Confirm donation</button>`:''}</td></tr>`).join('')}</table></div>`:'<p class="mut">No donors contacted yet.</p>'}
+<p><button class="b g" onclick="$('#dlg').close()">Close</button></p>`;$('#dlg').showModal()}
+async function act(p,b){try{await api(p,'POST',b||{});toast('Done');await openReq(CUR);if(V[tab]&&['reqs','mine'].includes(tab))go(tab)}catch(e){toast(e.message,1)}}
+
+V.offers=async()=>{const o=await api('offers');$('#main').innerHTML=o.length?o.map(x=>`<div class="card"><b>${x.blood_group} needed at ${esc(x.hospital)}</b> ${tag(x.urgency)} ${x.verification_status=='verified'?tag('&#10003; Verified Blood Request','verified'):''}<br>${x.distance} km away &middot; ${x.units_required} unit(s) &middot; by ${fmt(x.required_before)} &middot; match ${x.match_score}<br><span class="mut">${esc(x.description)}</span><p>${x.status=='notified'&&['Active','Donors Contacted','Partially Fulfilled'].includes(x.req_status)?`<button class="b ok sm" onclick="resp(${x.id},true)">I can donate</button> <button class="b g sm" onclick="resp(${x.id},false)">Decline</button>`:`Your response: <b>${esc(x.status)}</b>`} <button class="b g sm" onclick="rep(${x.request_id})">Report as suspicious</button></p></div>`).join(''):'<div class="card mut">No requests yet. You will be notified when a matching request needs you.</div>'};
+async function resp(id,a){try{await api(`responses/${id}/respond`,'POST',{accept:a});toast(a?'Thank you. The requester can now contact you.':'Declined');go('offers')}catch(e){toast(e.message,1)}}
+async function rep(id){try{await api(`requests/${id}/report`,'POST',{reason:'Suspicious request'});toast('Reported to administrators')}catch(e){toast(e.message,1)}}
+
+V.profile=async()=>{me=await api('me');const d=me.donor;$('#main').innerHTML=`<div class="card"><h2>${esc(me.name)} &middot; ${d.blood_group}</h2><p class="mut">${d.total_donations} donation(s). You must wait 90 days between donations.</p><form id="f"><label>Area</label><select name="area">${opts(meta.areas)}</select><label>Last donation date</label><input type="date" name="last_donation" value="${d.last_donation||''}"><label><input type="checkbox" name="available" style="width:auto" ${d.available?'checked':''}> I am available to donate</label><p><button class="b">Save profile</button></p></form></div>`;
+$('#f [name=area]').value=d.area;$('#f').onsubmit=async e=>{e.preventDefault();const f=e.target;try{await api('donor/profile','POST',{area:f.area.value,last_donation:f.last_donation.value,available:f.available.checked});toast('Profile saved')}catch(x){toast(x.message,1)}}};
+
+V.donors=async()=>{$('#main').innerHTML=`<div class="bar"><input id="d-name" placeholder="Search donor by name" style="min-width:200px"><select id="d-blood_group">${opts(meta.groups,'All groups')}</select><select id="d-city">${opts(meta.cities,'All cities')}</select><select id="d-available"><option value="">Availability</option><option value="1">Available</option><option value="0">Unavailable</option></select><select id="d-eligible"><option value="">Eligibility</option><option value="1">Eligible</option><option value="0">Not eligible</option></select><input type="date" id="d-donated_before" title="Last donation before"></div><div id="list"></div>`;
+const load=async()=>{const p=new URLSearchParams();['blood_group','city','available','eligible','donated_before'].forEach(k=>{const v=$('#d-'+k).value;if(v)p.set(k,v)});const nq=$('#d-name').value.toLowerCase();const r=(await api('donors?'+p)).filter(d=>!nq||d.name.toLowerCase().includes(nq));$('#list').innerHTML=`<div class="wrap"><table><tr><th>Name</th><th>Group</th><th>Area</th><th>Last donation</th><th>Available</th><th>Eligible</th><th>Donations</th></tr>${r.map(d=>`<tr><td>${esc(d.name)}</td><td><b>${d.blood_group}</b></td><td>${esc(d.area)}</td><td>${d.last_donation||'never'}</td><td>${d.available?'yes':'no'}</td><td>${d.eligible?'yes':'no'}</td><td>${d.total_donations}</td></tr>`).join('')}</table></div><p class="mut">${r.length} donors. Contact details are private.</p>`};
+document.querySelectorAll('.bar select,.bar input').forEach(e=>e.onchange=load);$('#d-name').oninput=load;load()};
+
+V.users=async()=>{const u=await api('admin/users');$('#main').innerHTML=`<div class="bar"><input id="u-q" placeholder="Search by name, email or phone" style="min-width:260px"><select id="u-role">${opts(['admin','coordinator','requester','donor'],'All roles')}</select><select id="u-st">${opts(['active','suspended'],'Any status')}</select></div><div id="ulist"></div>`;
+const show=()=>{const q=$('#u-q').value.toLowerCase(),ro=$('#u-role').value,st=$('#u-st').value;const f=u.filter(x=>(!ro||x.role==ro)&&(!st||x.status==st)&&(!q||[x.name,x.email,x.phone].join(' ').toLowerCase().includes(q)));
+$('#ulist').innerHTML=`<div class="wrap"><table><tr><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Status</th><th></th></tr>${f.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.email)}</td><td>${esc(x.phone)}</td><td>${x.role}</td><td>${x.status}</td><td><button class="b g sm" onclick="tg(${x.id})">${x.status=='active'?'Suspend':'Reactivate'}</button></td></tr>`).join('')}</table></div><p class="mut">${f.length} of ${u.length} users</p>`};
+$('#u-q').oninput=show;$('#u-role').onchange=show;$('#u-st').onchange=show;show()};
+async function tg(id){try{await api(`admin/users/${id}/toggle`,'POST');go('users')}catch(e){toast(e.message,1)}}
+V.reports=async()=>{const r=await api('admin/reports');$('#main').innerHTML=r.length?`<div class="wrap"><table><tr><th>Request</th><th>Reason</th><th>Reported by</th><th>When</th></tr>${r.map(x=>`<tr class="k" onclick="openReq(${x.request_id})"><td>#${x.request_id} ${x.blood_group} ${esc(x.hospital)} ${tag(x.verification_status)}</td><td>${esc(x.reason)}</td><td>${esc(x.reporter)}</td><td>${fmt(x.created_at)}</td></tr>`).join('')}</table></div>`:'<div class="card mut">No reports. Reported requests with 2 or more reports are flagged as suspicious automatically.</div>'};
+
+V.notes=async()=>{const n=await api('notifications?read=1');$('#main').innerHTML=`<div class="card">${n.length?n.map(x=>`<div class="note">${esc(x.message)}<br><small>${fmt(x.created_at)}</small></div>`).join(''):'<span class="mut">No notifications yet.</span>'}</div>`;bell()};
+
+V.dash=async()=>{const s=await api('stats');const K=[['Total requests',s.total],['Active',s.active],['Completed',s.completed],['Critical open',s.critical],['Registered donors',s.donors],['Available donors',s.available],['Donations completed',s.donations],['Fulfillment rate',s.fulfil_rate+'%'],['Avg fulfillment',s.avg_fulfil_min+' min'],['Avg donor response',s.avg_response_min+' min']];
+const bars=(t,a)=>{const m=Math.max(1,...a.map(x=>x.n));return `<div class="card"><h3 style="margin-top:0">${t}</h3>${a.map(x=>`<div class="hb"><u>${esc(x.k)}</u><i style="width:${200*x.n/m}px"></i>${x.n}</div>`).join('')}</div>`};
+$('#main').innerHTML=`<div class="kpis">${K.map(k=>`<div class="kpi"><b>${k[1]}</b><span>${k[0]}</span></div>`).join('')}</div>
+<div class="card"><b>Insight:</b> ${s.by_group[0]?`${s.by_group[0].k} is the most requested group (${s.by_group[0].n} requests)`:'No data yet'}${s.by_hospital[0]?`, and ${esc(s.by_hospital[0].k)} has the highest demand`:''}. ${s.fulfil_rate}% of reviewed requests were fulfilled.</div>
+<div class="row" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">${bars('Demand by blood group',s.by_group)}${bars('Requests by hospital',s.by_hospital)}${bars('Requests by city',s.by_city)}</div>`};
+
+setInterval(()=>{if(me&&!$('#dlg').open&&['offers','dash','notes'].includes(tab))go(tab);else if(me)bell()},10000);
+(async()=>{meta=await api('meta');try{me=await api('me');start()}catch{authView()}})();
+</script></body></html>
